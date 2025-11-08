@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const validator = require('validator');
+const argon2 = require('argon2');
 
 const userSchema = new mongoose.Schema({
   name: {
@@ -18,12 +19,51 @@ const userSchema = new mongoose.Schema({
     type: String,
     required: [true, 'A user must have a password'],
     minLength: 8,
+    select: false,
   },
   passwordConfirm: {
     type: String,
     required: [true, 'A user must confirm their password'],
+    validate: {
+      validator: function (el) {
+        return el === this.password;
+      },
+      message: 'Passwords must match',
+    },
   },
+  passwordChangedAt: Date,
 });
+
+userSchema.pre('save', async function (next) {
+  if (!this.isModified('password')) return next();
+
+  this.password = await argon2.hash(this.password, {
+    type: argon2.argon2id,
+  });
+
+  this.passwordConfirm = undefined;
+  next();
+});
+
+userSchema.methods.correctPassword = async function (
+  candidatePassword,
+  userPassword,
+) {
+  return await argon2.verify(userPassword, candidatePassword);
+};
+
+userSchema.methods.changedPasswordAfter = function (JWTTimestamp) {
+  if (this.passwordChangedAt) {
+    const changedTimeStamp = parseInt(
+      this.passwordChangedAt.getTime() / 1000,
+      10,
+    );
+
+    return JWTTimestamp < changedTimeStamp;
+  }
+
+  return false;
+};
 
 const User = mongoose.model('User', userSchema);
 
