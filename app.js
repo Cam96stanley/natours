@@ -6,6 +6,8 @@ const helmet = require('helmet');
 const mongoSanitize = require('express-mongo-sanitize');
 const xss = require('xss-clean');
 const hpp = require('hpp');
+const cors = require('cors');
+const cookieParser = require('cookie-parser');
 const tourRouter = require('./routes/tourRoutes');
 const userRouter = require('./routes/userRoutes');
 const reviewRouter = require('./routes/reviewRoutes');
@@ -14,6 +16,13 @@ const globalErrorHandler = require('./controllers/errorController');
 const viewRouter = require('./routes/viewRoutes');
 
 const app = express();
+
+app.use(
+  cors({
+    origin: 'http://localhost:8000',
+    credentials: true,
+  }),
+);
 
 app.set('view engine', 'pug');
 app.set('views', path.join(__dirname, 'views'));
@@ -26,7 +35,12 @@ app.use(
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
-        scriptSrc: ["'self'", 'https://api.mapbox.com', 'blob:'],
+        scriptSrc: [
+          "'self'",
+          'https://api.mapbox.com',
+          'https://cdn.jsdelivr.net', // <--- add this
+          'blob:',
+        ],
         workerSrc: ["'self'", 'blob:'],
         childSrc: ["'self'", 'blob:'],
         styleSrc: [
@@ -48,6 +62,7 @@ app.use(
           "'self'",
           'https://api.mapbox.com',
           'https://events.mapbox.com',
+          'http://127.0.0.1:8000',
         ],
       },
     },
@@ -67,6 +82,8 @@ const limiter = ratelimit({
 app.use('/api', limiter);
 
 app.use(express.json({ limit: '10kb' }));
+app.use(express.urlencoded({ extended: true, limit: '10kb' }));
+app.use(cookieParser());
 
 app.use(mongoSanitize());
 
